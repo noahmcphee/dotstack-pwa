@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Dot Stack — Lampworking Simulator</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="apple-mobile-web-app-title" content="Dot Stack">
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="icon-192.png" sizes="192x192">
+  <style>
+    body{margin:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
+         background:#111;color:#eee;font-family:sans-serif;}
+    #c{background:#222;border-radius:12px;touch-action:none;}
+    #msg{margin:8px;font-size:14px;color:#aaa;text-align:center;}
+  </style>
+</head>
+<body>
+  <canvas id="c" width="900" height="600"></canvas>
+  <div id="msg">👆 Tap = dot • ✌️ Two fingers = erase • ✋ Hold = heat</div>
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+let dots=[];let history=[];
+function saveHistory(){history.push(JSON.parse(JSON.stringify(dots)));if(history.length>30)history.shift();}
+function addDot(x,y,r,c,z){saveHistory();dots.push({x,y,r,color:c,z,id:Date.now()+Math.random()});render();}
+function removeDot(x,y){saveHistory();let cand=dots.filter(d=>Math.hypot(d.x-x,d.y-y)<=d.r);
+ if(cand.length){cand.sort((a,b)=>b.z-a.z);dots=dots.filter(d=>d.id!==cand[0].id);}render();}
+function heatMerge(x,y){const affected=dots.filter(d=>Math.hypot(d.x-x,d.y-y)<80);if(affected.length<2)return;
+ saveHistory();const areas=affected.map(d=>Math.PI*d.r*d.r);const total=areas.reduce((a,b)=>a+b,0);
+ let cx=0,cy=0;affected.forEach((d,i)=>{cx+=d.x*areas[i];cy+=d.y*areas[i];});cx/=total;cy/=total;
+ const r=Math.sqrt(total/Math.PI);let rr=0,gg=0,bb=0;affected.forEach((d,i)=>{const m=d.color.match(/(\d+),(\d+),(\d+)/);
+ rr+=+m[1]*areas[i];gg+=+m[2]*areas[i];bb+=+m[3]*areas[i];});rr=Math.round(rr/total);gg=Math.round(gg/total);bb=Math.round(bb/total);
+ const z=Math.max(...affected.map(d=>d.z))+1;const ids=new Set(affected.map(d=>d.id));dots=dots.filter(d=>!ids.has(d.id));
+ dots.push({x:cx,y:cy,r,color:`rgb(${rr},${gg},${bb})`,z,id:Date.now()+Math.random()});render();}
+function render(){ctx.clearRect(0,0,canvas.width,canvas.height);dots.slice().sort((a,b)=>a.z-b.z).forEach(d=>{ctx.beginPath();
+ ctx.fillStyle=d.color;ctx.arc(d.x,d.y,d.r,0,Math.PI*2);ctx.fill();});}
+let tTimer=null;
+canvas.addEventListener('touchstart',e=>{
+ e.preventDefault();
+ if(e.touches.length===1){const t=e.touches[0];const {x,y}=pos(t);
+   tTimer=setTimeout(()=>heatMerge(x,y),500);}else if(e.touches.length===2){const {x,y}=pos(e.touches[0]);removeDot(x,y);} });
+canvas.addEventListener('touchend',e=>{
+ clearTimeout(tTimer);
+ if(e.touches.length===0&&e.changedTouches.length===1){const t=e.changedTouches[0];const {x,y}=pos(t);
+   addDot(x,y,20,'rgb(255,100,150)',dots.length);} });
+function pos(t){const r=canvas.getBoundingClientRect();return{x:(t.clientX-r.left)*(canvas.width/r.width),
+ y:(t.clientY-r.top)*(canvas.height/r.height)};}
+addDot(300,300,20,'rgb(255,70,120)',0);
+addDot(330,300,20,'rgb(120,200,255)',0);
+</script>
+<script>
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('sw.js');
+}
+</script>
+</body>
+</html>
